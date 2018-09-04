@@ -1,18 +1,21 @@
 import pandas as pd
+import numpy as np
+import re
+import matplotlib.pyplot as plt
+import nltk 
+nltk.download('stopwords')
 # Dataset from - https://archive.ics.uci.edu/ml/datasets/SMS+Spam+Collection
-with open('SMSSpamCollection','r') as f:
-   
-    
-    df =pd.read_table(f, sep='\t',names=['label','sms_message'],
-                  header=None,
-                  lineterminator='\n')
+df=pd.read_csv("SMSSpamCollection",delimiter="\t",quoting=3,header=None)
+
 # Output printing out first 5 rows
-df.to_csv("test.csv")
+
 print(df.head())
+
+
 
 #Convert the values in the 'label' column to numerical values using map method as follows: {'ham':0, 'spam':1} 
 #This maps the 'ham' value to 0 and the 'spam' value to 1.
-df['label'] = df.label.map({'ham':0, 'spam':1})
+#df['label'] = df.label.map({'ham':0, 'spam':1})
 
 #Check the shape of the dataset
 print(df.shape) #5572,2
@@ -27,61 +30,38 @@ print(df.shape) #5572,2
 #Save them into a list called 'lower_case_documents
 
 documents = []
-for docs in df['sms_message']:
-    documents.append(docs)
-print (documents)
-
-lower_case_documents = []
-for i in documents:
-    lower_case_documents.append(i.lower())
-print(lower_case_documents)
-
-#Remove all punctuation from the strings in the document set. 
-#Save them into a list called 'sans_punctuation_documents'.
-
-sans_punctuation_documents = []
-import string
-
-for i in lower_case_documents:
-    for c in string.punctuation:
-        i=i.replace(c,"")
-    sans_punctuation_documents.append(i)    
+for docs in range(0,len(df)):
+    message=re.sub("[^a-zA-Z]"," ",df.iloc[docs,1]) #removed character replaced by space
+    message = message.lower()
+    message = message.split()
+    ps = PorterStemmer()
+    message = [word for word in message if word not in set(stopwords.words("english"))]
+    message=" ".join(message)
+    documents.append(message)
     
-print(sans_punctuation_documents)
+#Bag of Words
+from sklearn.feature_extraction.text import CountVectorizer
+cv = CountVectorizer(max_features = 3000)#filter non relevant words #keep max 1500
+X=cv.fit_transform(documents).toarray()
 
+#Train the the classification model on bag of words
 
-#Tokenization
-preprocessed_documents = []
-for i in sans_punctuation_documents:
-    preprocessed_documents.append(i.split(" "))
-    
-print(preprocessed_documents)    
-
-#Count Frequencies
-frequency_list = []
-import pprint
-from collections import Counter
-feq={}
-
-for i in preprocessed_documents:
-    for j in i:
-        if j  in feq:
-            feq[j]+=1
-        else:
-            feq[j]=1
-for key in feq:
-    frequency_list.append(feq[key])
-pprint.pprint(frequency_list)
-
-#Splitting into training and testing set
-# USE from sklearn.model_selection import train_test_split to avoid seeing deprecation warning.
+y=df.iloc[:,0].values # assign dependent variable
+# Splitting the dataset into the Training set and Test set
 from sklearn.cross_validation import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.20, random_state = 0)
 
-X_train, X_test, y_train, y_test = train_test_split(df['sms_message'], 
-                                                    df['label'], 
-                                                    random_state=1)
 
-print('Number of rows in the total set: {}'.format(df.shape[0]))
-print('Number of rows in the training set: {}'.format(X_train.shape[0]))
-print('Number of rows in the test set: {}'.format(X_test.shape[0]))
+# Fitting Naive Bayes to the Training set
+from sklearn.naive_bayes import MultinomialNB
+classifier = MultinomialNB()
+classifier.fit(X_train, y_train)
 
+# Predicting the Test set results
+y_pred = classifier.predict(X_test)
+
+# Making the Confusion Matrix
+from sklearn.metrics import confusion_matrix
+cm = confusion_matrix(y_test, y_pred)
+
+#Accuracy = 97%
